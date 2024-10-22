@@ -1,3 +1,19 @@
+# nm-ecash-ckpool-solo
+
+This is a fork of the [ecash-ckpool-solo](https://github.com/Bitcoin-ABC/ecash-ckpool-solo).
+
+Our goal is to provide a fully comatible Solo Pool for the AXE Lottery devices, such as [NMAxe](https://github.com/NMminer1024/ESP-Miner-NMAxe), [bitaxe](https://github.com/skot/bitaxe), nerdaxe.
+
+Our pool address: [NMMiner eCash(XEC) Solo Pool](https://pool.nmminer.com/).
+
+The default difficulty is 1024, the minimum difficulty is 512, which is very friendly for AXE devices. 
+
+## Why we choose the eCash(XEC)
+
+- eCash is a digital currency that enables instant payments to anyone, anywhere in the world. It uses peer-to-peer technology to operate with no central authority: managing transactions and issuing money are carried out collectively by the network. eCash is a descendant of Bitcoin.
+
+- The network difficulty is about 27G (BTC is about 92T), the probability of winning a block is about 3400 times than BTC lottery. And a block reward is about `$70`, which means that you may win a block in a Year, which is a very cool and valuable thing.
+
 # ecash-ckpool-solo
 
 This is a fork of the CKPOOL solo mining software by Con Kolivas, with added

@@ -41,6 +41,8 @@ static const char *scriptsig_header = "01000000010000000000000000000000000000000
 static uchar scriptsig_header_bin[41];
 static const double nonces = 4294967296;
 
+struct block_accepted global_block_accepted;
+
 /* Add unaccounted shares when they arrive, remove them with each update of
  * rolling stats. */
 struct pool_stats {
@@ -1074,21 +1076,12 @@ static void add_base(ckpool_t *ckp, sdata_t *sdata, workbase_t *wb, bool *new_bl
 	ts_realtime(&wb->gentime);
 	/* Stats network_diff is not protected by lock but is not a critical
 	 * value */
-	// XEC only.
-	if (ckp->ecash) {
-		wb->network_diff = wb->rtt_diff;
-	} else {
-		wb->network_diff = diff_from_nbits(wb->headerbin + 72);
-	}
+	wb->network_diff = diff_from_nbits(wb->headerbin + 72);
 	if (wb->network_diff < 1)
 		wb->network_diff = 1;
 	stats->network_diff = wb->network_diff;
-	if (stats->network_diff != old_diff) {
-		LOGWARNING("Network diff updated to %.1f", stats->network_diff);
-	} else {
-		LOGWARNING("Network diff constant: %.1f", stats->network_diff);
-	}
-
+	if (stats->network_diff != old_diff)
+		LOGWARNING("Network diff set to %.1f", stats->network_diff);
 	len = strlen(ckp->logdir) + 8 + 1 + 16 + 1;
 	wb->logdir = ckzalloc(len);
 
@@ -3814,6 +3807,37 @@ static void block_share_summary(sdata_t *sdata)
 	bdiff = sdiff / sdata->current_workbase->network_diff * 100;
 	LOGWARNING("Block solved after %.0lf shares at %.1f%% diff",
 		   sdiff, bdiff);
+	global_block_accepted.bdiff = bdiff;
+	global_block_accepted.sdiff = sdiff;
+}
+
+static void block_solved_summary(ckpool_t *ckp)
+{
+	json_t *json_msg;
+	char *s, *fname;
+	FILE *fp;
+
+	JSON_CPACK(json_msg, "{s:s, s:s, s:i, s:f, s:f, s:f}",
+		   "hexhash", global_block_accepted.hexhash,
+		   "username", global_block_accepted.username,
+		   "height", global_block_accepted.height,
+		   "solvediff", global_block_accepted.solve_diff,
+		   "sdiff", global_block_accepted.sdiff,
+		   "bdiff", global_block_accepted.bdiff);
+	
+	s = json_dumps(json_msg, JSON_NO_UTF8 | JSON_PRESERVE_ORDER);
+	json_decref(json_msg);
+
+	ASPRINTF(&fname, "%s/blocks/%s", ckp->logdir, global_block_accepted.hexhash);
+	fp = fopen(fname, "we");
+	if (unlikely(!fp))
+		LOGERR("Failed to fopen %s", fname);
+	dealloc(fname);
+
+	LOGWARNING("%s", s);
+	fprintf(fp, "%s\n", s);
+	dealloc(s);
+	fclose(fp);
 }
 
 static void block_solve(ckpool_t *ckp, json_t *val)
@@ -3845,6 +3869,9 @@ static void block_solve(ckpool_t *ckp, json_t *val)
 		char *s;
 
 		ASPRINTF(&msg, "Block %d solved by %s @ %s!", height, workername, ckp->name);
+		global_block_accepted.height = height;
+		memcpy(global_block_accepted.username, workername, strlen(workername) + 1);
+
 		LOGWARNING("Solved and confirmed block %d by %s", height, workername);
 		user = user_by_workername(sdata, workername);
 		worker = get_worker(sdata, user, workername);
@@ -3869,6 +3896,7 @@ static void block_solve(ckpool_t *ckp, json_t *val)
 	free(workername);
 
 	block_share_summary(sdata);
+	block_solved_summary(ckp);
 	reset_bestshares(sdata);
 }
 
@@ -5818,12 +5846,16 @@ test_blocksolve(const stratum_instance_t *client, const workbase_t *wb, const uc
 	if (!ckp->node && wb->proxy)
 		return;
 
+	global_block_accepted.solve_diff = diff;
+
 	ts_realtime(&ts_now);
 	sprintf(cdfield, "%lu,%lu", ts_now.tv_sec, ts_now.tv_nsec);
 
 	gbt_block = process_block(wb, coinbase, cblen, data, hash, flip32, blockhash);
 	send_node_block(ckp, sdata, client->enonce1, nonce, nonce2, ntime32, version_mask,
 			wb->id, diff, client->id, coinbase, cblen, data);
+
+	memcpy(global_block_accepted.hexhash, blockhash, 68);
 
 	val = json_object();
 	json_set_int(val, "height", wb->height);
@@ -8222,7 +8254,7 @@ static void *statsupdate(void *arg)
 
 		/* Round to 4 significant digits */
 		percent = round(stats->accounted_diff_shares * 10000 / stats->network_diff) / 100;
-		JSON_CPACK(val, "{sf,sI,sI,sI,sf,sf,sf,sf}",
+		JSON_CPACK(val, "{sf,sI,sI,sI,sf,sf,sf,sf,sf}",
 			        "diff", percent,
 				"accepted", stats->accounted_diff_shares,
 				"rejected", stats->accounted_rejects,
@@ -8230,7 +8262,8 @@ static void *statsupdate(void *arg)
 				"SPS1m", stats->sps1,
 				"SPS5m", stats->sps5,
 				"SPS15m", stats->sps15,
-				"SPS1h", stats->sps60);
+				"SPS1h", stats->sps60,
+				"netdiff", stats->network_diff);
 		s = json_dumps(val, JSON_NO_UTF8 | JSON_PRESERVE_ORDER | JSON_REAL_PRECISION(3));
 		json_decref(val);
 		LOGNOTICE("Pool:%s", s);
@@ -8538,6 +8571,7 @@ static void *zmqnotify(void *arg)
 					update_base(sdata, GEN_PRIORITY);
 					__bin2hex(hexhash, zmq_msg_data(&message), 32);
 					LOGNOTICE("ZMQ block hash %s", hexhash);
+					memcpy(global_block_accepted.hexhash, hexhash, 68);
 					break;
 				default:
 					LOGWARNING("ZMQ message size error, size = %d!", size);

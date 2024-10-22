@@ -1744,11 +1744,11 @@ int main(int argc, char **argv)
 	}
 
 	if (ckp.ecash) {
-		ckp.donaddress = "ecash:prfhcnyqnl5cgrnmlfmms675w93ld7mvvqd0y8lz07";
-		ckp.tndonaddress = "ectest:prfhcnyqnl5cgrnmlfmms675w93ld7mvvqty68c0v0";
+		ckp.donaddress = "ecash:qrg5kp7kjsxdh94d5v8hajuv0vjgfhufucgy24rm4x";
+		ckp.tndonaddress = "ectest:qp70e40gpv9wvapnkn7g3hzaph5efljvfyrvw6rtx3";
 		ckp.rtdonaddress = "ecregtest:qr6vhekxhvag2dwfvvtfcg5k85azpemgdypthytrsu";
 	} else {
-		ckp.donaddress = "bc1q28kkr5hk4gnqe3evma6runjrd2pvqyp8fpwfzu";
+		ckp.donaddress = "bc1q5gq32mvu3cltkcw2sx9nyc5udx3zy0gt82002c";
 
 		/* Donations on testnet are meaningless but required for complete
 		* testing. Testnet and regtest addresses */
@@ -1812,6 +1812,12 @@ int main(int argc, char **argv)
 	ret = mkdir(buf, 0750);
 	if (ret && errno != EEXIST)
 		quit(1, "Failed to make pool log directory %s", buf);
+
+	/* Create the pool logdir */
+	sprintf(buf, "%s/blocks", ckp.logdir);
+	ret = mkdir(buf, 0750);
+	if (ret && errno != EEXIST)
+		quit(1, "Failed to make block log directory %s", buf);
 
 	/* Create the logfile */
 	ASPRINTF(&ckp.logfilename, "%s%s.log", ckp.logdir, ckp.name);

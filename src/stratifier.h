@@ -83,8 +83,6 @@ struct genwork {
 	char stakingrewards_txn[256]; // staking rewards txn
 	int stakingrewards_txnlen; // length of above
 	uint64_t stakingrewards_amount; // staking rewards amount
-	
-	double rtt_diff; // real time difficulty
 
 	/* Cached header binary */
 	char headerbin[112];
@@ -97,6 +95,16 @@ struct genwork {
 	bool incomplete; /* This is a remote workinfo without all the txn data */
 
 	json_t *json; /* getblocktemplate json */
+};
+
+struct block_accepted
+{
+	char hexhash[68];
+	char username[128];
+	int height;
+	double solve_diff;
+	double sdiff; // share count
+	double bdiff; // percent diff
 };
 
 void parse_remote_txns(ckpool_t *ckp, const json_t *val);
